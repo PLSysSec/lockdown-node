@@ -26,6 +26,7 @@
 #include "node_contextify.h"
 #include "node_context_data.h"
 #include "node_errors.h"
+#include "sha256.h"
 
 namespace node {
 namespace contextify {
@@ -631,6 +632,24 @@ class ContextifyScript : public BaseObject {
 
     CHECK(args[1]->IsString());
     Local<String> filename = args[1].As<String>();
+
+    // check if lockdown is enabled
+    if (!lockdown_hashfile.empty() || lockdown_gen_hashes) {
+      String::Utf8Value code_str(isolate, code);
+      char* hash = SHA256(*code_str, code_str.length());
+      if (!lockdown_hashes.count(hash)) {
+        if (lockdown_gen_hashes) {
+          printf("Lockdown :: %s :: %s\n", *String::Utf8Value(isolate, filename), hash);
+          free(hash);
+        } else {
+          fprintf(stderr,
+                  "Lockdown :: hash not found for file: %s\n",
+                  *String::Utf8Value(isolate, filename));
+          free(hash);
+          CHECK(false);
+        }
+      }
+    }
 
     Local<Integer> line_offset;
     Local<Integer> column_offset;

@@ -84,6 +84,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_set>
 
 #if defined(NODE_HAVE_I18N_SUPPORT)
 #include <unicode/uvernum.h>
@@ -268,6 +269,14 @@ bool config_pending_deprecation = false;
 
 // Set in node.cc by ParseArgs when --redirect-warnings= is used.
 std::string config_warning_file;  // NOLINT(runtime/string)
+
+// Set by ParseArgs when --lockdown-gen-hashes is used.
+bool lockdown_gen_hashes = false;
+// Set by ParseArgs when --lockdown-hashfile= or LOCKDOWN_HASHFILE
+// environment variable is used.
+std::string lockdown_hashfile;  // NOLINT(runtime/string)
+// Set in node.cc by Init.
+std::unordered_set<std::string> lockdown_hashes;
 
 // Set in node.cc by ParseArgs when --expose-internals or --expose_internals is
 // used.
@@ -2495,6 +2504,9 @@ static void PrintHelp() {
          "  --inspect[=[host:]port]    activate inspector on host:port\n"
          "                             (default: 127.0.0.1:9229)\n"
 #endif  // HAVE_INSPECTOR
+         "  --lockdown-gen-hashes      enable Lockdown hash generation mode\n"
+         "  --lockdown-hashfile=file   path to the Lockdown hash file\n"
+         "                             (overrides LOCKDOWN_HASHFILE)\n"
          "  --napi-modules             load N-API modules (no-op - option\n"
          "                             kept for compatibility)\n"
          "  --no-deprecation           silence deprecation warnings\n"
@@ -2600,6 +2612,7 @@ static void PrintHelp() {
          "NODE_REPL_HISTORY            path to the persistent REPL history\n"
          "                             file\n"
          "OPENSSL_CONF                 load OpenSSL configuration from file\n"
+         "LOCKDOWN_HASHFILE            path to the Lockdown hash file\n"
          "\n"
          "Documentation can be found at https://nodejs.org/\n");
 }
@@ -2647,6 +2660,8 @@ static void CheckIfAllowedInEnv(const char* exe, bool is_env,
     "--inspect-brk",
     "--inspect-port",
     "--loader",
+    "--lockdown-gen-hashes",
+    "--lockdown-hashfile",
     "--napi-modules",
     "--no-deprecation",
     "--no-force-async-hooks-checks",
@@ -2903,6 +2918,10 @@ static void ParseArgs(int* argc,
       // Also a V8 option.  Pass through as-is.
       new_v8_argv[new_v8_argc] = arg;
       new_v8_argc += 1;
+    } else if (strcmp(arg, "--lockdown-gen-hashes") == 0) {
+      lockdown_gen_hashes = true;
+    } else if (strncmp(arg, "--lockdown-hashfile=", 20) == 0) {
+      lockdown_hashfile.assign(arg + 20);
     } else {
       // V8 option.  Pass through as-is.
       new_v8_argv[new_v8_argc] = arg;
@@ -3287,6 +3306,9 @@ void Init(int* argc,
     SafeGetenv("OPENSSL_CONF", &openssl_config);
 #endif
 
+  if (lockdown_hashfile.empty())
+    SafeGetenv("LOCKDOWN_HASHFILE", &lockdown_hashfile);
+
 #if !defined(NODE_WITHOUT_NODE_OPTIONS)
   std::string node_options;
   if (SafeGetenv("NODE_OPTIONS", &node_options)) {
@@ -3331,6 +3353,22 @@ void Init(int* argc,
     exit(9);
   }
 #endif
+
+  if (!lockdown_hashfile.empty()) {
+    std::ifstream hashfile_stream(lockdown_hashfile);
+    if (hashfile_stream) {
+      std::string hash;
+      while (std::getline(hashfile_stream, hash)) {
+        lockdown_hashes.insert(hash);
+      }
+    } else {
+      fprintf(stderr,
+              "%s: could not read Lockdown hashfile "
+              "(check LOCKDOWN_HASHFILE or --lockdown-hashfile parameters)\n",
+              argv[0]);
+      exit(9);
+    }
+  }
 
   // We should set node_is_initialized here instead of in node::Start,
   // otherwise embedders using node::Init to initialize everything will not be
