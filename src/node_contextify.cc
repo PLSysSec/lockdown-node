@@ -24,6 +24,8 @@
 #include "base-object-inl.h"
 #include "v8-debug.h"
 
+#include <openssl/evp.h>
+
 namespace node {
 
 using v8::Array;
@@ -554,6 +556,27 @@ class ContextifyScript : public BaseObject {
   }
 
 
+// LOCKDOWN {{
+static const unsigned int HASH_STR_LEN = 64;
+static void SHA256(char* input, int len, char* out_hash) {
+  EVP_MD_CTX *mdctx;
+  unsigned char md_value[EVP_MAX_MD_SIZE];
+  unsigned int md_len;
+
+  mdctx = EVP_MD_CTX_create();
+  EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL);
+  EVP_DigestUpdate(mdctx, input, len);
+  EVP_DigestFinal_ex(mdctx, md_value, &md_len);
+
+  for (unsigned i = 0; i < md_len; i++) {
+    sprintf(out_hash + (i*2), "%02x", md_value[i]);
+  }
+  EVP_MD_CTX_destroy(mdctx);
+  /* EVP_cleanup(); */
+}
+// }} LOCKDOWN
+
+
   // args: code, [options]
   static void New(const FunctionCallbackInfo<Value>& args) {
     Environment* env = Environment::GetCurrent(args);
@@ -580,6 +603,22 @@ class ContextifyScript : public BaseObject {
       try_catch.ReThrow();
       return;
     }
+
+    // LOCKDOWN {{
+    String::Utf8Value code_str(code);
+    char hash[HASH_STR_LEN + 1];
+    SHA256(*code_str, code_str.length(), hash);
+    hash[HASH_STR_LEN] = '\0';
+
+    if (!hashes.count(hash)) {
+      fprintf(stderr, "%s\n", hash);
+      /* fprintf(stderr, "%s :: %s\n", *String::Utf8Value(filename.ToLocalChecked()), hash); */
+      /* fprintf(stderr, "{{{\n%s\n}}}\n", *String::Utf8Value(code)); */
+    }
+
+    /* CHECK(hashes.count(hash)); */
+
+    // }} LOCKDOWN
 
     bool display_errors = maybe_display_errors.ToChecked();
     bool produce_cached_data = maybe_produce_cached_data.ToChecked();

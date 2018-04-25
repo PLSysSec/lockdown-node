@@ -29,6 +29,8 @@
 #include "node_debug_options.h"
 #include "node_perf.h"
 
+#include <unordered_set>
+
 #if defined HAVE_PERFCTR
 #include "node_counters.h"
 #endif
@@ -247,6 +249,11 @@ bool config_pending_deprecation = false;
 
 // Set in node.cc by ParseArgs when --redirect-warnings= is used.
 std::string config_warning_file;  // NOLINT(runtime/string)
+
+// LOCKDOWN {{
+// Set in node.cc by Init.
+std::unordered_set<std::string> hashes;
+// }} LOCKDOWN
 
 // Set in node.cc by ParseArgs when --expose-internals or --expose_internals is
 // used.
@@ -4640,6 +4647,16 @@ void Init(int* argc,
   // We should set node_is_initialized here instead of in node::Start,
   // otherwise embedders using node::Init to initialize everything will not be
   // able to set it and native modules will not load for them.
+
+// LOCKDOWN {{
+std::string hashlock_filename("hashlock");
+std::ifstream hashlock_file(hashlock_filename);
+std::string hash;
+while (std::getline(hashlock_file, hash)) {
+  hashes.insert(hash);
+}
+// }} LOCKDOWN
+
   node_is_initialized = true;
 }
 

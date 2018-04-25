@@ -172,6 +172,12 @@ extern bool config_expose_internals;
 // it to stderr.
 extern std::string config_warning_file;  // NOLINT(runtime/string)
 
+// LOCKDOWN {{
+// Set in node.cc by Init.
+// Used in node_contextify.cc.
+extern std::unordered_set<std::string> hashes;
+// }} LOCKDOWN
+
 // Set in node.cc by ParseArgs when --pending-deprecation or
 // NODE_PENDING_DEPRECATION is used
 extern bool config_pending_deprecation;
