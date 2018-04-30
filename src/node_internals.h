@@ -173,9 +173,11 @@ extern bool config_expose_internals;
 extern std::string config_warning_file;  // NOLINT(runtime/string)
 
 // LOCKDOWN {{
+// Set by ParseArgs when --gen-hashes is used.
+extern bool lockdown_gen_hashes;
 // Set in node.cc by Init.
 // Used in node_contextify.cc.
-extern std::unordered_set<std::string> hashes;
+extern std::unordered_set<std::string> lockdown_hashes;
 // }} LOCKDOWN
 
 // Set in node.cc by ParseArgs when --pending-deprecation or

@@ -251,8 +251,10 @@ bool config_pending_deprecation = false;
 std::string config_warning_file;  // NOLINT(runtime/string)
 
 // LOCKDOWN {{
+// Set by ParseArgs when --gen-hashes is used.
+bool lockdown_gen_hashes = false;
 // Set in node.cc by Init.
-std::unordered_set<std::string> hashes;
+std::unordered_set<std::string> lockdown_hashes;
 // }} LOCKDOWN
 
 // Set in node.cc by ParseArgs when --expose-internals or --expose_internals is
@@ -3563,6 +3565,13 @@ void SetupProcessObject(Environment* env,
     READONLY_PROPERTY(process, "traceProcessWarnings", True(env->isolate()));
   }
 
+  // {{ LOCKDOWN
+  // --gen-hashes
+  if (lockdown_gen_hashes) {
+    READONLY_PROPERTY(process, "genHashes", True(env->isolate()));
+  }
+  // }} LOCKDOWN
+
   // --throw-deprecation
   if (throw_deprecation) {
     READONLY_PROPERTY(process, "throwDeprecation", True(env->isolate()));
@@ -4204,6 +4213,10 @@ static void ParseArgs(int* argc,
       // Also a V8 option.  Pass through as-is.
       new_v8_argv[new_v8_argc] = arg;
       new_v8_argc += 1;
+    // {{ LOCKDOWN
+    } else if (strcmp(arg, "--gen-hashes") == 0) {
+      lockdown_gen_hashes = true;
+    // }} LOCKDOWN
     } else {
       // V8 option.  Pass through as-is.
       new_v8_argv[new_v8_argc] = arg;
@@ -4653,7 +4666,7 @@ std::string hashlock_filename("hashlock");
 std::ifstream hashlock_file(hashlock_filename);
 std::string hash;
 while (std::getline(hashlock_file, hash)) {
-  hashes.insert(hash);
+  lockdown_hashes.insert(hash);
 }
 // }} LOCKDOWN
 

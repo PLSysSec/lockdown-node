@@ -610,14 +610,16 @@ static void SHA256(char* input, int len, char* out_hash) {
     SHA256(*code_str, code_str.length(), hash);
     hash[HASH_STR_LEN] = '\0';
 
-    if (!hashes.count(hash)) {
-      fprintf(stderr, "%s\n", hash);
-      /* fprintf(stderr, "%s :: %s\n", *String::Utf8Value(filename.ToLocalChecked()), hash); */
-      /* fprintf(stderr, "{{{\n%s\n}}}\n", *String::Utf8Value(code)); */
-    }
+    if (lockdown_gen_hashes) {
+      printf("%s :: %s\n", *String::Utf8Value(filename.ToLocalChecked()), hash);
+    } else {
+      if (!lockdown_hashes.count(hash)) {
+        printf("MISMATCH:: %s :: %s\n", *String::Utf8Value(filename.ToLocalChecked()), hash);
+        /* printf("{{{\n%s\n}}}\n", *String::Utf8Value(code)); */
 
-    /* CHECK(hashes.count(hash)); */
-
+        /* CHECK(lockdown_hashes.count(hash)); */
+      }
+  }
     // }} LOCKDOWN
 
     bool display_errors = maybe_display_errors.ToChecked();
