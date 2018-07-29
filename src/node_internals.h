@@ -172,13 +172,16 @@ extern bool config_expose_internals;
 // it to stderr.
 extern std::string config_warning_file;  // NOLINT(runtime/string)
 
-// LOCKDOWN {{
-// Set by ParseArgs when --gen-hashes is used.
+// Set by ParseArgs when --lockdown-gen-hashes is used.
+// Used in node_contextify.cc to generate hashes of JS code.
 extern bool lockdown_gen_hashes;
+// Set in node.cc by ParseArgs when --lockdown-hashfile= or LOCKDOWN_HASHFILE
+// environment variable is used.
+// Used to read Lockdown hash file and indicate that Lockdown is enabled.
+extern std::string lockdown_hashfile;  // NOLINT(runtime/string)
 // Set in node.cc by Init.
-// Used in node_contextify.cc.
+// Used in node_contextify.cc to lookup and verify hashes of JS code before executing.
 extern std::unordered_set<std::string> lockdown_hashes;
-// }} LOCKDOWN
 
 // Set in node.cc by ParseArgs when --pending-deprecation or
 // NODE_PENDING_DEPRECATION is used

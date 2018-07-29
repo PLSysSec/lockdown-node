@@ -250,12 +250,13 @@ bool config_pending_deprecation = false;
 // Set in node.cc by ParseArgs when --redirect-warnings= is used.
 std::string config_warning_file;  // NOLINT(runtime/string)
 
-// LOCKDOWN {{
-// Set by ParseArgs when --gen-hashes is used.
+// Set by ParseArgs when --lockdown-gen-hashes is used.
 bool lockdown_gen_hashes = false;
+// Set by ParseArgs when --lockdown-hashfile= or LOCKDOWN_HASHFILE
+// environment variable is used.
+std::string lockdown_hashfile;  // NOLINT(runtime/string)
 // Set in node.cc by Init.
 std::unordered_set<std::string> lockdown_hashes;
-// }} LOCKDOWN
 
 // Set in node.cc by ParseArgs when --expose-internals or --expose_internals is
 // used.
@@ -3565,12 +3566,10 @@ void SetupProcessObject(Environment* env,
     READONLY_PROPERTY(process, "traceProcessWarnings", True(env->isolate()));
   }
 
-  // {{ LOCKDOWN
   // --gen-hashes
   if (lockdown_gen_hashes) {
     READONLY_PROPERTY(process, "genHashes", True(env->isolate()));
   }
-  // }} LOCKDOWN
 
   // --throw-deprecation
   if (throw_deprecation) {
@@ -3842,6 +3841,9 @@ static void PrintHelp() {
          "  --inspect-port=[host:]port\n"
          "                             set host:port for inspector\n"
 #endif
+         "  --lockdown-gen-hashes      enable Lockdown hash generation mode\n"
+         "  --lockdown-hashfile=file   path to the Lockdown hash file\n"
+         "                             (overrides LOCKDOWN_HASHFILE)\n"
          "  --no-deprecation           silence deprecation warnings\n"
          "  --trace-deprecation        show stack traces on deprecations\n"
          "  --throw-deprecation        throw an exception on deprecations\n"
@@ -3935,6 +3937,9 @@ static void PrintHelp() {
          "NODE_REDIRECT_WARNINGS       write warnings to path instead of\n"
          "                             stderr\n"
          "OPENSSL_CONF                 load OpenSSL configuration from file\n"
+         "LOCKDOWN_HASHFILE            path to the Lockdown hash file\n"
+         "LOCKDOWN_GEN_HASHES          set to 1 to enable Lockdown hash\n"
+         "                             generation mode\n"
          "\n"
          "Documentation can be found at https://nodejs.org/\n");
 }
@@ -3983,6 +3988,8 @@ static void CheckIfAllowedInEnv(const char* exe, bool is_env,
     "--expose-http2",
     "--experimental-modules",
     "--loader",
+    "--lockdown-gen-hashes",
+    "--lockdown-hashfile",
     "--trace-warnings",
     "--redirect-warnings",
     "--trace-sync-io",
@@ -4213,10 +4220,10 @@ static void ParseArgs(int* argc,
       // Also a V8 option.  Pass through as-is.
       new_v8_argv[new_v8_argc] = arg;
       new_v8_argc += 1;
-    // {{ LOCKDOWN
-    } else if (strcmp(arg, "--gen-hashes") == 0) {
-      lockdown_gen_hashes = true;
-    // }} LOCKDOWN
+		} else if (strcmp(arg, "--lockdown-gen-hashes") == 0) {
+			lockdown_gen_hashes = true;
+		} else if (strncmp(arg, "--lockdown-hashfile=", 20) == 0) {
+			lockdown_hashfile.assign(arg + 20);
     } else {
       // V8 option.  Pass through as-is.
       new_v8_argv[new_v8_argc] = arg;
@@ -4598,6 +4605,12 @@ void Init(int* argc,
         SafeGetenv("NODE_PRESERVE_SYMLINKS", &text) && text[0] == '1';
   }
 
+  {
+    std::string text;
+    lockdown_gen_hashes =
+        SafeGetenv("LOCKDOWN_GEN_HASHES", &text) && text[0] == '1';
+  }
+
   if (config_warning_file.empty())
     SafeGetenv("NODE_REDIRECT_WARNINGS", &config_warning_file);
 
@@ -4605,6 +4618,9 @@ void Init(int* argc,
   if (openssl_config.empty())
     SafeGetenv("OPENSSL_CONF", &openssl_config);
 #endif
+	if (lockdown_hashfile.empty())
+		SafeGetenv("LOCKDOWN_HASHFILE", &lockdown_hashfile);
+
 
 #if !defined(NODE_WITHOUT_NODE_OPTIONS)
   std::string node_options;
@@ -4661,16 +4677,23 @@ void Init(int* argc,
   // otherwise embedders using node::Init to initialize everything will not be
   // able to set it and native modules will not load for them.
 
-// LOCKDOWN {{
-std::string hashlock_filename("hashlock");
-std::ifstream hashlock_file(hashlock_filename);
-std::string hash;
-while (std::getline(hashlock_file, hash)) {
-  lockdown_hashes.insert(hash);
-}
-// }} LOCKDOWN
+	if (!lockdown_hashfile.empty()) {
+		std::ifstream hashfile_stream(lockdown_hashfile);
+		if (hashfile_stream) {
+			std::string hash;
+			while (std::getline(hashfile_stream, hash)) {
+				lockdown_hashes.insert(hash);
+			}
+		} else {
+			fprintf(stderr,
+					"%s: could not read Lockdown hashfile "
+					"(check LOCKDOWN_HASHFILE or --lockdown-hashfile parameters)\n",
+					argv[0]);
+			exit(9);
+		}
+	}
 
-  node_is_initialized = true;
+	node_is_initialized = true;
 }
 
 
