@@ -270,7 +270,8 @@ bool config_pending_deprecation = false;
 // Set in node.cc by ParseArgs when --redirect-warnings= is used.
 std::string config_warning_file;  // NOLINT(runtime/string)
 
-// Set by ParseArgs when --lockdown-gen-hashes is used.
+// Set by ParseArgs when --lockdown-gen-hashes is used or LOCKDOWN_GEN_HASHES
+// environment variable is used.
 bool lockdown_gen_hashes = false;
 // Set by ParseArgs when --lockdown-hashfile= or LOCKDOWN_HASHFILE
 // environment variable is used.
@@ -2613,6 +2614,8 @@ static void PrintHelp() {
          "                             file\n"
          "OPENSSL_CONF                 load OpenSSL configuration from file\n"
          "LOCKDOWN_HASHFILE            path to the Lockdown hash file\n"
+         "LOCKDOWN_GEN_HASHES          set to 1 to enable Lockdown hash\n"
+         "                             generation mode\n"
          "\n"
          "Documentation can be found at https://nodejs.org/\n");
 }
@@ -3296,6 +3299,12 @@ void Init(int* argc,
     std::string text;
     config_preserve_symlinks_main =
         SafeGetenv("NODE_PRESERVE_SYMLINKS_MAIN", &text) && text[0] == '1';
+  }
+
+  {
+    std::string text;
+    lockdown_gen_hashes =
+        SafeGetenv("LOCKDOWN_GEN_HASHES", &text) && text[0] == '1';
   }
 
   if (config_warning_file.empty())
